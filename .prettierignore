@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+playwright-report/
+test-results/
+storage/
+*.min.js
+*.min.css
+yarn.lock
+package-lock.json
