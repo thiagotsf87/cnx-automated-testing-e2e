@@ -13,7 +13,7 @@ Configure os seguintes secrets no seu repositório GitHub:
 2. Clique em "Add to Slack"
 3. Escolha o canal (ex: #qa-automation)
 4. Copie a URL do webhook
-**Formato**: `https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX`
+**Formato**: URL no formato `https://hooks.slack.com/services/[WORKSPACE]/[CHANNEL]/[TOKEN]`
 
 ### 2. BASE_URL (Variável de Ambiente)
 **Descrição**: URL base da aplicação para testes
