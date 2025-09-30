@@ -37,7 +37,7 @@ test.beforeAll(async () => {
   console.log('✅ Token pronto para uso');
 });
 
-test('aPI | atualiza status de participação (PUT)', async () => {
+test('API | atualiza status de participação (PUT)', async () => {
   const baseUrl = process.env.BASE_URL;
   expect(baseUrl).toBeDefined();
 
@@ -62,7 +62,7 @@ test('aPI | atualiza status de participação (PUT)', async () => {
   expect([200, 201]).toContain(updateRes.status());
 });
 
-test('aPI | cria chamado de monitoramento (200/201 + id)', async () => {
+test('API | cria chamado de monitoramento (200/201 + id)', async () => {
   const baseUrl = process.env.BASE_URL;
   expect(baseUrl).toBeDefined();
 

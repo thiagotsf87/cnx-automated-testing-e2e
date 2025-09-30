@@ -95,7 +95,7 @@ async function executeBlockingTest(
 
 // Teste de configuração inicial
 test.describe('configuração Inicial', () => {
-  test('aPI | configura status para teste de bloqueio', async () => {
+  test('API | configura status para teste de bloqueio', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
 
@@ -125,7 +125,7 @@ test.describe('configuração Inicial', () => {
 
 // Testes individuais para cada status de bloqueio
 test.describe('status de Bloqueio - Testes Básicos', () => {
-  test('aPI | bloqueia criação quando status é "Definindo auditor"', async () => {
+  test('API | bloqueia criação quando status é "Definindo auditor"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(0); // Usar agricultor válido
@@ -133,7 +133,7 @@ test.describe('status de Bloqueio - Testes Básicos', () => {
     await executeBlockingTest(api, grower, 'Definindo auditor');
   });
 
-  test('aPI | bloqueia criação quando status é "Em agendamento"', async () => {
+  test('API | bloqueia criação quando status é "Em agendamento"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(1);
@@ -141,7 +141,7 @@ test.describe('status de Bloqueio - Testes Básicos', () => {
     await executeBlockingTest(api, grower, 'Em agendamento');
   });
 
-  test('aPI | bloqueia criação quando status é "Agendado"', async () => {
+  test('API | bloqueia criação quando status é "Agendado"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(2);
@@ -149,7 +149,7 @@ test.describe('status de Bloqueio - Testes Básicos', () => {
     await executeBlockingTest(api, grower, 'Agendado');
   });
 
-  test('aPI | bloqueia criação quando status é "Em monitoramento"', async () => {
+  test('API | bloqueia criação quando status é "Em monitoramento"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(3);
@@ -157,7 +157,7 @@ test.describe('status de Bloqueio - Testes Básicos', () => {
     await executeBlockingTest(api, grower, 'Em monitoramento');
   });
 
-  test('aPI | bloqueia criação quando status é "Aguardando pagamento"', async () => {
+  test('API | bloqueia criação quando status é "Aguardando pagamento"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(1); // Usar agricultor válido
@@ -165,7 +165,7 @@ test.describe('status de Bloqueio - Testes Básicos', () => {
     await executeBlockingTest(api, grower, 'Aguardando pagamento');
   });
 
-  test('aPI | bloqueia criação quando status é "Análise Backoffice"', async () => {
+  test('API | bloqueia criação quando status é "Análise Backoffice"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(3); // Usar agricultor único
@@ -173,7 +173,7 @@ test.describe('status de Bloqueio - Testes Básicos', () => {
     await executeBlockingTest(api, grower, 'Análise Backoffice');
   });
 
-  test('aPI | bloqueia criação quando status é "Análise final"', async () => {
+  test('API | bloqueia criação quando status é "Análise final"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(4); // Usar agricultor único
@@ -181,7 +181,7 @@ test.describe('status de Bloqueio - Testes Básicos', () => {
     await executeBlockingTest(api, grower, 'Análise final');
   });
 
-  test('aPI | bloqueia criação quando status é "Pendente de regularização"', async () => {
+  test('API | bloqueia criação quando status é "Pendente de regularização"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(2); // Usar agricultor válido
@@ -189,7 +189,7 @@ test.describe('status de Bloqueio - Testes Básicos', () => {
     await executeBlockingTest(api, grower, 'Pendente de regularização');
   });
 
-  test('aPI | bloqueia criação quando status é "Finalizado"', async () => {
+  test('API | bloqueia criação quando status é "Finalizado"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(3); // Usar agricultor válido
@@ -200,7 +200,7 @@ test.describe('status de Bloqueio - Testes Básicos', () => {
 
 // Teste de cenário de sucesso
 test.describe('cenário de Sucesso', () => {
-  test('aPI | permite criação quando status é "Finalizado não regularizado"', async () => {
+  test('API | permite criação quando status é "Finalizado não regularizado"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
     const grower = AgricultorDataManager.getPrimary(0); // Usar agricultor válido
@@ -232,7 +232,7 @@ test.describe('cenário de Sucesso', () => {
 // ============================================================================
 
 test.describe('estratégias de Dados - Bloqueio', () => {
-  test('aPI | usando DataManager - bloqueia "Definindo auditor"', async () => {
+  test('API | usando DataManager - bloqueia "Definindo auditor"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
 
@@ -242,7 +242,7 @@ test.describe('estratégias de Dados - Bloqueio', () => {
     await executeBlockingTest(api, grower, 'Definindo auditor');
   });
 
-  test('aPI | usando Fixtures - bloqueia "Em agendamento"', async () => {
+  test('API | usando Fixtures - bloqueia "Em agendamento"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
 
@@ -252,7 +252,7 @@ test.describe('estratégias de Dados - Bloqueio', () => {
     await executeBlockingTest(api, grower, 'Em agendamento');
   });
 
-  test('aPI | usando Builder - bloqueia "Agendado"', async () => {
+  test('API | usando Builder - bloqueia "Agendado"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
 
@@ -262,7 +262,7 @@ test.describe('estratégias de Dados - Bloqueio', () => {
     await executeBlockingTest(api, grower, 'Agendado');
   });
 
-  test('aPI | usando Factory - bloqueia "Em monitoramento"', async () => {
+  test('API | usando Factory - bloqueia "Em monitoramento"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
 
@@ -272,7 +272,7 @@ test.describe('estratégias de Dados - Bloqueio', () => {
     await executeBlockingTest(api, grower, 'Em monitoramento');
   });
 
-  test('aPI | usando DataManager único - bloqueia "Aguardando pagamento"', async () => {
+  test('API | usando DataManager único - bloqueia "Aguardando pagamento"', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
 
@@ -284,7 +284,7 @@ test.describe('estratégias de Dados - Bloqueio', () => {
 });
 
 test.describe('cenários Específicos', () => {
-  test('aPI | múltiplos agricultores para teste paralelo', async () => {
+  test('API | múltiplos agricultores para teste paralelo', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
 
@@ -302,7 +302,7 @@ test.describe('cenários Específicos', () => {
     }
   });
 
-  test('aPI | filtrar agricultores por UF', async () => {
+  test('API | filtrar agricultores por UF', async () => {
     const ctx = await newHttpContext(TEST_CONFIG.baseUrl, globalToken);
     const api = new CropMonitoringService(ctx);
 

@@ -1,0 +1,130 @@
+name: Playwright MCP - Simple
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Executa todos os dias às 2h da manhã UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  playwright-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: |
+        yarn install --frozen-lockfile
+        yarn add playwright-mcp-server
+    
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+    
+    - name: Run Playwright MCP tests
+      run: |
+        echo "🚀 Iniciando testes com Playwright MCP..."
+        yarn test:api
+        echo "✅ Testes de API concluídos"
+        
+        yarn test:e2e
+        echo "✅ Testes E2E concluídos"
+        
+        yarn test:smoke
+        echo "✅ Testes de smoke concluídos"
+      env:
+        BASE_URL: https://stg.conexaobiotec.com.br
+        CI: true
+        PLAYWRIGHT_MCP_ENABLED: true
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: playwright-mcp-results
+        path: |
+          playwright-report/
+          test-results/
+          screenshots/
+        retention-days: 14
+    
+    - name: Comment PR with test results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Verifica se existe arquivo de resultados
+          const resultsPath = 'test-results/results.json';
+          if (fs.existsSync(resultsPath)) {
+            const results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+            const stats = results.stats || {};
+            
+            const comment = `## 🎭 Playwright MCP Test Results
+            
+            ### 📊 Estatísticas
+            - **Total de testes**: ${stats.total || 0}
+            - **Passou**: ${stats.passed || 0} ✅
+            - **Falhou**: ${stats.failed || 0} ❌
+            - **Pulou**: ${stats.skipped || 0} ⏭️
+            - **Duração**: ${stats.duration || 0}ms
+            
+            ### 📋 Detalhes
+            ${stats.failed > 0 ? '❌ **Alguns testes falharam**' : '✅ **Todos os testes passaram**'}
+            
+            📁 **Artefatos**: Disponível na aba Actions deste workflow
+            🔍 **Logs detalhados**: Verifique os logs do job para mais informações
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          }
+
+  # Job para limpeza de artifacts antigos
+  cleanup:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Cleanup old artifacts
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            run_id: context.runId
+          });
+          
+          console.log(`Found ${artifacts.data.artifacts.length} artifacts`);
+          
+          // Mantém apenas os últimos 10 artifacts
+          if (artifacts.data.artifacts.length > 10) {
+            const toDelete = artifacts.data.artifacts.slice(10);
+            for (const artifact of toDelete) {
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id
+              });
+              console.log(`Deleted artifact: ${artifact.name}`);
+            }
+          }
+

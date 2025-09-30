@@ -35,7 +35,7 @@ test.beforeAll(async () => {
   console.log('✅ Token pronto para uso');
 });
 
-test('aPI | valida PUT + GET para verificar alteração de status', async () => {
+test('API | valida PUT + GET para verificar alteração de status', async () => {
   const baseUrl = process.env.BASE_URL;
   expect(baseUrl).toBeDefined();
 

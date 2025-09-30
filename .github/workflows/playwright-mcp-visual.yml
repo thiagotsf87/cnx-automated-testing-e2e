@@ -1,0 +1,162 @@
+name: Playwright MCP - Visual Regression
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      generate_baseline:
+        description: 'Gerar novas imagens baseline'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  visual-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: |
+        yarn install --frozen-lockfile
+        yarn add playwright-mcp-server
+    
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+    
+    - name: Run visual regression tests
+      run: |
+        if [ "${{ github.event.inputs.generate_baseline }}" == "true" ]; then
+          echo "🖼️ Gerando imagens baseline..."
+          yarn test:e2e --update-snapshots
+        else
+          echo "🔍 Executando testes de regressão visual..."
+          yarn test:e2e
+        fi
+      env:
+        BASE_URL: https://stg.conexaobiotec.com.br
+        CI: true
+        PLAYWRIGHT_MCP_VISUAL: true
+    
+    - name: Upload visual test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: visual-test-results
+        path: |
+          playwright-report/
+          test-results/
+          test-results/**/screenshots/
+        retention-days: 30
+    
+    - name: Generate visual comparison report
+      if: always()
+      run: |
+        echo "📊 Gerando relatório de comparação visual..."
+        
+        # Cria relatório simples em HTML
+        cat > visual-report.html << EOF
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Visual Regression Test Report</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                .header { background: #f0f0f0; padding: 20px; border-radius: 5px; }
+                .test-result { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+                .passed { border-left: 5px solid #4CAF50; }
+                .failed { border-left: 5px solid #f44336; }
+                .screenshot { max-width: 300px; margin: 10px; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🎭 Visual Regression Test Report</h1>
+                <p><strong>Data:</strong> $(date)</p>
+                <p><strong>Branch:</strong> ${{ github.ref_name }}</p>
+                <p><strong>Commit:</strong> ${{ github.sha }}</p>
+            </div>
+            
+            <h2>📋 Resultados dos Testes</h2>
+            <div class="test-result">
+                <h3>Status: ${{ job.status }}</h3>
+                <p>Artefatos disponíveis na aba Actions do workflow.</p>
+            </div>
+        </body>
+        </html>
+        EOF
+        
+        echo "✅ Relatório visual gerado: visual-report.html"
+    
+    - name: Upload visual report
+      uses: actions/upload-artifact@v4
+      with:
+        name: visual-report
+        path: visual-report.html
+        retention-days: 30
+
+  # Job para análise de performance visual
+  performance-analysis:
+    runs-on: ubuntu-latest
+    needs: visual-regression
+    if: always()
+    
+    steps:
+    - name: Download test results
+      uses: actions/download-artifact@v4
+      with:
+        name: visual-test-results
+        path: ./results
+    
+    - name: Analyze performance metrics
+      run: |
+        echo "📈 Analisando métricas de performance..."
+        
+        # Conta arquivos de screenshot
+        SCREENSHOT_COUNT=$(find ./results -name "*.png" | wc -l)
+        echo "📸 Total de screenshots: $SCREENSHOT_COUNT"
+        
+        # Calcula tamanho total dos artifacts
+        TOTAL_SIZE=$(du -sh ./results | cut -f1)
+        echo "💾 Tamanho total dos resultados: $TOTAL_SIZE"
+        
+        # Gera relatório de performance
+        cat > performance-report.md << EOF
+        # 📊 Relatório de Performance - Visual Tests
+        
+        ## Métricas Gerais
+        - **Total de Screenshots**: $SCREENSHOT_COUNT
+        - **Tamanho dos Resultados**: $TOTAL_SIZE
+        - **Status do Job**: ${{ needs.visual-regression.result }}
+        
+        ## Recomendações
+        $([ $SCREENSHOT_COUNT -gt 50 ] && echo "- ⚠️ Muitos screenshots gerados. Considere otimizar os testes." || echo "- ✅ Quantidade adequada de screenshots.")
+        $([ "${{ needs.visual-regression.result }}" == "success" ] && echo "- ✅ Todos os testes visuais passaram." || echo "- ❌ Alguns testes visuais falharam.")
+        
+        ## Próximos Passos
+        1. Revisar screenshots de falha
+        2. Atualizar baselines se necessário
+        3. Otimizar testes se houver muitas falhas
+        EOF
+        
+        echo "✅ Relatório de performance gerado"
+    
+    - name: Upload performance report
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-report
+        path: performance-report.md
+        retention-days: 30
+

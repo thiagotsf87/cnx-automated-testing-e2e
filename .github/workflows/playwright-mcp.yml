@@ -1,0 +1,282 @@
+name: Playwright MCP Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Tipo de teste a executar'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - api
+        - e2e
+        - smoke
+        - permissions
+
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        # Executa em diferentes navegadores
+        browser: [chromium, firefox, webkit]
+        
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+    
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps ${{ matrix.browser }}
+    
+    - name: Install Playwright MCP Server
+      run: yarn add playwright-mcp-server
+    
+    - name: Setup environment variables
+      run: |
+        echo "BASE_URL=https://stg.conexaobiotec.com.br" >> $GITHUB_ENV
+        echo "CI=true" >> $GITHUB_ENV
+        echo "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1" >> $GITHUB_ENV
+    
+    - name: Run Playwright MCP Tests
+      run: |
+        case "${{ github.event.inputs.test_type || 'all' }}" in
+          "api")
+            yarn test:api
+            ;;
+          "e2e")
+            yarn test:e2e
+            ;;
+          "smoke")
+            yarn test:smoke
+            ;;
+          "permissions")
+            yarn test:permissions
+            ;;
+          *)
+            yarn test
+            ;;
+        esac
+      env:
+        BASE_URL: https://stg.conexaobiotec.com.br
+        CI: true
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: playwright-report-${{ matrix.browser }}
+        path: |
+          playwright-report/
+          test-results/
+        retention-days: 30
+    
+    - name: Upload screenshots and videos
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: playwright-failures-${{ matrix.browser }}
+        path: |
+          test-results/
+          screenshots/
+        retention-days: 30
+
+  # Job específico para testes de API (mais rápido)
+  api-tests:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'api' || github.event.inputs.test_type == 'all'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+    
+    - name: Install Playwright MCP Server
+      run: yarn add playwright-mcp-server
+    
+    - name: Setup environment variables
+      run: |
+        echo "BASE_URL=https://stg.conexaobiotec.com.br" >> $GITHUB_ENV
+        echo "CI=true" >> $GITHUB_ENV
+    
+    - name: Run API Tests
+      run: yarn test:api
+      env:
+        BASE_URL: https://stg.conexaobiotec.com.br
+        CI: true
+    
+    - name: Upload API test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: api-test-results
+        path: |
+          playwright-report/
+          test-results/
+        retention-days: 30
+
+  # Job para testes de smoke (validação rápida)
+  smoke-tests:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'smoke' || github.event.inputs.test_type == 'all'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+    
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps chromium
+    
+    - name: Install Playwright MCP Server
+      run: yarn add playwright-mcp-server
+    
+    - name: Setup environment variables
+      run: |
+        echo "BASE_URL=https://stg.conexaobiotec.com.br" >> $GITHUB_ENV
+        echo "CI=true" >> $GITHUB_ENV
+    
+    - name: Run Smoke Tests
+      run: yarn test:smoke
+      env:
+        BASE_URL: https://stg.conexaobiotec.com.br
+        CI: true
+    
+    - name: Upload smoke test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: smoke-test-results
+        path: |
+          playwright-report/
+          test-results/
+        retention-days: 30
+
+  # Job para testes de permissões (específico do projeto)
+  permissions-tests:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'permissions' || github.event.inputs.test_type == 'all'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+    
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps chromium
+    
+    - name: Install Playwright MCP Server
+      run: yarn add playwright-mcp-server
+    
+    - name: Setup environment variables
+      run: |
+        echo "BASE_URL=https://stg.conexaobiotec.com.br" >> $GITHUB_ENV
+        echo "CI=true" >> $GITHUB_ENV
+    
+    - name: Run Permissions Tests
+      run: yarn test:permissions
+      env:
+        BASE_URL: https://stg.conexaobiotec.com.br
+        CI: true
+    
+    - name: Upload permissions test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: permissions-test-results
+        path: |
+          playwright-report/
+          test-results/
+        retention-days: 30
+
+  # Job para deploy do relatório
+  deploy-report:
+    needs: [test, api-tests, smoke-tests, permissions-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all test results
+      uses: actions/download-artifact@v4
+      with:
+        path: ./test-reports
+    
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+    
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v4
+      with:
+        path: ./test-reports
+    
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  # Job para notificação de resultados
+  notify:
+    needs: [test, api-tests, smoke-tests, permissions-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify test results
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        channel: '#qa-automation'
+        text: |
+          🎭 Playwright MCP Tests - ${{ github.ref_name }}
+          
+          📊 **Resultados:**
+          - Testes principais: ${{ needs.test.result }}
+          - Testes de API: ${{ needs.api-tests.result }}
+          - Testes de smoke: ${{ needs.smoke-tests.result }}
+          - Testes de permissões: ${{ needs.permissions-tests.result }}
+          
+          🔗 **Links:**
+          - Commit: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          - Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          
+          📋 **Relatório:** Disponível nos artifacts do workflow
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+

@@ -1,0 +1,362 @@
+name: Playwright MCP - Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Executa a cada 4 horas para monitoramento contínuo
+    - cron: '0 */4 * * *'
+
+jobs:
+  # Job para análise de código e qualidade
+  code-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+    
+    - name: Run linting
+      run: yarn lint
+    
+    - name: Check code formatting
+      run: yarn format:check
+    
+    - name: Upload lint results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: lint-results
+        path: |
+          eslint-report.json
+        retention-days: 7
+
+  # Job para testes de API com paralelização
+  api-tests-parallel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        test-suite: 
+          - "crop-monitoring/blocking-scenarios"
+          - "crop-monitoring/create-ticket"
+          - "crop-monitoring/put-get-validation"
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+    
+    - name: Install Playwright MCP Server
+      run: yarn add playwright-mcp-server
+    
+    - name: Run specific API test suite
+      run: yarn test "tests/api/${{ matrix.test-suite }}.spec.ts"
+      env:
+        BASE_URL: https://stg.conexaobiotec.com.br
+        CI: true
+        TEST_SUITE: ${{ matrix.test-suite }}
+    
+    - name: Upload API test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: api-results-${{ matrix.test-suite }}
+        path: |
+          test-results/
+        retention-days: 14
+
+  # Job para testes E2E com diferentes configurações
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        browser: [chromium, firefox]
+        viewport: ["1280x720", "1920x1080"]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+    
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps ${{ matrix.browser }}
+    
+    - name: Install Playwright MCP Server
+      run: yarn add playwright-mcp-server
+    
+    - name: Run E2E tests
+      run: |
+        echo "Executando testes E2E com ${{ matrix.browser }} em ${{ matrix.viewport }}"
+        yarn test:e2e --project=${{ matrix.browser }}
+      env:
+        BASE_URL: https://stg.conexaobiotec.com.br
+        CI: true
+        VIEWPORT: ${{ matrix.viewport }}
+    
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: e2e-results-${{ matrix.browser }}-${{ matrix.viewport }}
+        path: |
+          playwright-report/
+          test-results/
+        retention-days: 14
+
+  # Job para testes de performance
+  performance-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'yarn'
+    
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+    
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+    
+    - name: Install Playwright MCP Server
+      run: yarn add playwright-mcp-server
+    
+    - name: Run performance tests
+      run: |
+        echo "🚀 Executando testes de performance..."
+        
+        # Mede tempo de carregamento da página inicial
+        start_time=$(date +%s)
+        yarn test:e2e --grep "home page load"
+        end_time=$(date +%s)
+        load_time=$((end_time - start_time))
+        
+        echo "⏱️ Tempo de carregamento: ${load_time}s"
+        echo "LOAD_TIME=${load_time}" >> $GITHUB_ENV
+        
+        # Executa testes de stress
+        yarn test:api --workers=4
+        
+      env:
+        BASE_URL: https://stg.conexaobiotec.com.br
+        CI: true
+        PERFORMANCE_MODE: true
+    
+    - name: Generate performance report
+      run: |
+        cat > performance-report.md << EOF
+        # 📊 Relatório de Performance
+        
+        ## Métricas Coletadas
+        - **Tempo de carregamento da página**: ${LOAD_TIME}s
+        - **Data do teste**: $(date)
+        - **Branch**: ${{ github.ref_name }}
+        - **Commit**: ${{ github.sha }}
+        
+        ## Análise
+        $([ $LOAD_TIME -lt 10 ] && echo "✅ **Performance excelente** (< 10s)" || echo "⚠️ **Performance pode ser melhorada** (> 10s)")
+        
+        ## Recomendações
+        - Monitorar métricas regularmente
+        - Otimizar recursos pesados se necessário
+        - Considerar CDN para assets estáticos
+        EOF
+        
+        echo "📋 Relatório de performance gerado"
+    
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-results
+        path: |
+          performance-report.md
+          test-results/
+        retention-days: 30
+
+  # Job para geração de relatório consolidado
+  consolidate-results:
+    needs: [code-quality, api-tests-parallel, e2e-tests, performance-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./consolidated-results
+    
+    - name: Generate consolidated report
+      run: |
+        echo "📊 Gerando relatório consolidado..."
+        
+        # Conta total de testes
+        TOTAL_API=$(find ./consolidated-results -name "api-results-*" -type d | wc -l)
+        TOTAL_E2E=$(find ./consolidated-results -name "e2e-results-*" -type d | wc -l)
+        
+        # Gera relatório HTML consolidado
+        cat > consolidated-report.html << EOF
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>CI Test Results - ${{ github.ref_name }}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+                .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+                .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+                .metric { background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center; }
+                .metric.success { border-left: 4px solid #28a745; }
+                .metric.warning { border-left: 4px solid #ffc107; }
+                .metric.error { border-left: 4px solid #dc3545; }
+                .jobs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+                .job { background: #f8f9fa; padding: 15px; border-radius: 5px; }
+                .job h3 { margin-top: 0; color: #333; }
+                .status { padding: 5px 10px; border-radius: 3px; font-weight: bold; }
+                .status.success { background: #d4edda; color: #155724; }
+                .status.failed { background: #f8d7da; color: #721c24; }
+                .status.cancelled { background: #fff3cd; color: #856404; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🎭 Playwright MCP - CI Results</h1>
+                    <p><strong>Branch:</strong> ${{ github.ref_name }} | <strong>Commit:</strong> ${{ github.sha }} | <strong>Data:</strong> $(date)</p>
+                </div>
+                
+                <div class="summary">
+                    <div class="metric ${{ needs.code-quality.result == 'success' && 'success' || 'error' }}">
+                        <h3>Code Quality</h3>
+                        <p>${{ needs.code-quality.result }}</p>
+                    </div>
+                    <div class="metric ${{ needs.api-tests-parallel.result == 'success' && 'success' || 'error' }}">
+                        <h3>API Tests</h3>
+                        <p>${{ needs.api-tests-parallel.result }}</p>
+                    </div>
+                    <div class="metric ${{ needs.e2e-tests.result == 'success' && 'success' || 'error' }}">
+                        <h3>E2E Tests</h3>
+                        <p>${{ needs.e2e-tests.result }}</p>
+                    </div>
+                    <div class="metric ${{ needs.performance-tests.result == 'success' && 'success' || 'error' }}">
+                        <h3>Performance</h3>
+                        <p>${{ needs.performance-tests.result }}</p>
+                    </div>
+                </div>
+                
+                <div class="jobs">
+                    <div class="job">
+                        <h3>📋 Code Quality</h3>
+                        <p><span class="status ${{ needs.code-quality.result == 'success' && 'success' || 'failed' }}">${{ needs.code-quality.result }}</span></p>
+                        <p>Linting e formatação de código</p>
+                    </div>
+                    
+                    <div class="job">
+                        <h3>🔌 API Tests</h3>
+                        <p><span class="status ${{ needs.api-tests-parallel.result == 'success' && 'success' || 'failed' }}">${{ needs.api-tests-parallel.result }}</span></p>
+                        <p>Testes de API em paralelo</p>
+                        <p>Suites executadas: $TOTAL_API</p>
+                    </div>
+                    
+                    <div class="job">
+                        <h3>🌐 E2E Tests</h3>
+                        <p><span class="status ${{ needs.e2e-tests.result == 'success' && 'success' || 'failed' }}">${{ needs.e2e-tests.result }}</span></p>
+                        <p>Testes end-to-end multi-browser</p>
+                        <p>Configurações: $TOTAL_E2E</p>
+                    </div>
+                    
+                    <div class="job">
+                        <h3>⚡ Performance</h3>
+                        <p><span class="status ${{ needs.performance-tests.result == 'success' && 'success' || 'failed' }}">${{ needs.performance-tests.result }}</span></p>
+                        <p>Testes de performance e stress</p>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px; padding: 20px; background: #e9ecef; border-radius: 5px;">
+                    <h3>📁 Artefatos Disponíveis</h3>
+                    <p>Relatórios detalhados e screenshots estão disponíveis na aba "Actions" deste workflow.</p>
+                    <p><strong>Workflow ID:</strong> ${{ github.run_id }}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        EOF
+        
+        echo "✅ Relatório consolidado gerado"
+    
+    - name: Upload consolidated report
+      uses: actions/upload-artifact@v4
+      with:
+        name: consolidated-ci-report
+        path: consolidated-report.html
+        retention-days: 30
+
+  # Job para notificação final
+  notify-final:
+    needs: [consolidate-results]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify CI results
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        channel: '#qa-automation'
+        text: |
+          🎭 **Playwright MCP CI** - ${{ github.ref_name }}
+          
+          📊 **Resumo dos Jobs:**
+          - Code Quality: ${{ needs.code-quality.result }}
+          - API Tests: ${{ needs.api-tests-parallel.result }}
+          - E2E Tests: ${{ needs.e2e-tests.result }}
+          - Performance: ${{ needs.performance-tests.result }}
+          
+          🔗 **Links:**
+          - Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - Commit: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          
+          📋 **Relatório consolidado:** Disponível nos artifacts
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
